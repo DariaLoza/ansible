@@ -1,0 +1,82 @@
+---
+ - name: Ansible Playbook
+   hosts: all
+   become: yes
+
+   tasks:
+
+   - name: Ping my servers
+     ping:
+
+   - name: Create devops group
+     group:
+      name: devops
+      state: present
+  #---Var1-----
+   - name: Create test user
+     user:
+      name: test
+      group: devops
+   - name: Give sudo access to test user
+     lockinfile:
+       path: /etc/sudoers
+       insertafter: 'root    ALL=(ALL)       ALL'
+       block: |
+        # Gives sudo access to the devops group
+        %devops        ALL=(ALL)       NOPASSWD: ALL       
+  #---Var2----- 
+   - name: Create user test
+     user:
+       name: test
+       password: python:: python -c 'import crypt; print crypt.crypt("123")'
+       shell: /bin/bash
+       groups: wheel
+       append: yes 
+  #add ssh key       
+   - authorized_key:
+       user: test
+       state: present
+  #path to keys 
+       key: "{{ lookup('file', '/Users/daria/ansible/keys/testuserkey.pub') }}"  
+ #-------------
+    - name: Install bash-completion
+      dnf:
+        name: bash-completion
+        state: latest
+
+     - name: Creating a dircolors file
+       copy:
+        src: "./dircolors.sh"
+        dest: "/etc/profile.d/dircolors.sh"
+
+    - name: Install logrotate
+      dnf:
+        name: logrotate
+        state: latest
+   
+    - name: Config logrotate    
+      blockinfile:
+        path: "/etc/logrotate.d/{{ item.path }}"
+        block: "{{ item.conf }}"
+        create: true
+      loop: "{{ lp_logrotate_confd }}"
+      vars:
+        lp_logrotate_confd:
+          - path: ansible
+          conf: |
+            /var/log/ansible.log {
+                 weekly
+                 rotate 3
+                 size 10M
+                 compress
+                 delaycompress
+            }
+    - name: Ubuntu clean
+      shell: |
+        sudo apt-get purge $(dpkg -l 'linux-*' | sed '/^ii/!d;/'"$(uname -r | sed "s/\(.*\)-\([^0-9]\+\)/\1/")"'/d;s/^[^ ]* [^ ]* \([^ ]*\).*/\1/;/[0-9]/!d' | head -n -1)
+        sudo apt autoremove
+        sudo apt autoclean
+        sudo apt clean
+...
+
+
